@@ -35,15 +35,51 @@ echo "${EXPAT_VERSION}.${build}" > "${STAGING_DIR}/VERSION.txt"
 pushd "$top/$EXPAT_SOURCE_DIR"
     case "$AUTOBUILD_PLATFORM" in
         windows*)
-            set +x
             load_vsvars
-            set -x
 
-            build_sln "expat.sln" "Release|$AUTOBUILD_WIN_VSPLATFORM" "expat_static"
+            if [ "$AUTOBUILD_ADDRSIZE" = 32 ]
+            then
+                archflags="/arch:SSE2"
+            else
+                archflags=""
+            fi
 
-            BASE_DIR="$STAGING_DIR/"
-            mkdir -p "$BASE_DIR/lib/release"
-            cp win32/bin/Release/libexpatMT.lib "$BASE_DIR/lib/release/"
+            mkdir -p "$STAGING_DIR/lib/debug"
+            mkdir -p "$STAGING_DIR/lib/release"
+
+            mkdir -p "build_debug"
+            pushd "build_debug"
+                # Invoke cmake and use as official build
+                cmake -E env CFLAGS="$archflags" CXXFLAGS="$archflags /std:c++17 /permissive-" LDFLAGS="/DEBUG:FULL" \
+                cmake -G "$AUTOBUILD_WIN_CMAKE_GEN" -A "$AUTOBUILD_WIN_VSPLATFORM" .. -DEXPAT_SHARED_LIBS=ON -DEXPAT_BUILD_TOOLS=OFF -DEXPAT_BUILD_EXAMPLES=OFF
+
+                cmake --build . --config Debug --clean-first
+
+                # conditionally run unit tests
+                if [ "${DISABLE_UNIT_TESTS:-0}" = "0" ]; then
+                    cp Debug/libexpatd.dll "tests/Debug/"
+                    ctest -C Debug
+                fi
+
+                cp Debug/libexpatd.{lib,dll,exp,pdb} "$STAGING_DIR/lib/debug/"
+            popd
+
+            mkdir -p "build_release"
+            pushd "build_release"
+                # Invoke cmake and use as official build
+                cmake -E env CFLAGS="$archflags /Ob3 /GL /Gy /Zi" CXXFLAGS="$archflags /Ob3 /GL /Gy /Zi /std:c++17 /permissive-" LDFLAGS="/LTCG /OPT:REF /OPT:ICF /DEBUG:FULL" \
+                cmake -G "$AUTOBUILD_WIN_CMAKE_GEN" -A "$AUTOBUILD_WIN_VSPLATFORM" .. -DEXPAT_SHARED_LIBS=ON -DEXPAT_BUILD_TOOLS=OFF -DEXPAT_BUILD_EXAMPLES=OFF
+
+                cmake --build . --config Release --clean-first
+
+                # conditionally run unit tests
+                if [ "${DISABLE_UNIT_TESTS:-0}" = "0" ]; then
+                    cp Release/libexpat.dll "tests/Release/"
+                    ctest -C Release
+                fi
+
+                cp Release/libexpat.{lib,dll,exp,pdb} "$STAGING_DIR/lib/release/"
+            popd
 
             INCLUDE_DIR="$STAGING_DIR/include/expat"
             mkdir -p "$INCLUDE_DIR"
