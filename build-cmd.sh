@@ -192,14 +192,79 @@ pushd "$top/$EXPAT_SOURCE_DIR"
             cp lib/expat_external.h "$INCLUDE_DIR"
         ;;
         linux*)
-            PREFIX="$STAGING_DIR"
-            CFLAGS="-m$AUTOBUILD_ADDRSIZE $LL_BUILD_RELEASE" ./configure --prefix="$PREFIX" --libdir="$PREFIX/lib/release"
-            make
-            make install
+            # Default target per --address-size
+            opts="${TARGET_OPTS:--m$AUTOBUILD_ADDRSIZE}"
 
-            mv "$PREFIX/include" "$PREFIX/expat"
-            mkdir -p "$PREFIX/include"
-            mv "$PREFIX/expat" "$PREFIX/include"
+            # Setup build flags
+            DEBUG_COMMON_FLAGS="$opts -Og -g -fPIC -DPIC"
+            RELEASE_COMMON_FLAGS="$opts -O3 -g -fPIC -DPIC -fstack-protector-strong -D_FORTIFY_SOURCE=2"
+            DEBUG_CFLAGS="$DEBUG_COMMON_FLAGS"
+            RELEASE_CFLAGS="$RELEASE_COMMON_FLAGS"
+            DEBUG_CXXFLAGS="$DEBUG_COMMON_FLAGS -std=c++17"
+            RELEASE_CXXFLAGS="$RELEASE_COMMON_FLAGS -std=c++17"
+            DEBUG_CPPFLAGS="-DPIC"
+            RELEASE_CPPFLAGS="-DPIC"
+            DEBUG_LDFLAGS="$opts"
+            RELEASE_LDFLAGS="$opts"      
+
+            JOBS=`cat /proc/cpuinfo | grep processor | wc -l`
+
+            # Handle any deliberate platform targeting
+            if [ -z "${TARGET_CPPFLAGS:-}" ]; then
+                # Remove sysroot contamination from build environment
+                unset CPPFLAGS
+            else
+                # Incorporate special pre-processing flags
+                export CPPFLAGS="$TARGET_CPPFLAGS"
+            fi
+
+            # Fix up path for pkgconfig
+            if [ -d "$STAGING_DIR/packages/lib/release/pkgconfig" ]; then
+                fix_pkgconfig_prefix "$STAGING_DIR/packages"
+            fi
+
+            OLD_PKG_CONFIG_PATH="${PKG_CONFIG_PATH:-}"
+
+            # force regenerate autoconf
+            autoreconf -fvi
+
+            mkdir -p "build_debug"
+            pushd "build_debug"
+                # debug configure and build
+                export PKG_CONFIG_PATH="$STAGING_DIR/packages/lib/debug/pkgconfig:${OLD_PKG_CONFIG_PATH}"
+
+                CFLAGS="$DEBUG_CFLAGS" \
+                CXXFLAGS="$DEBUG_CXXFLAGS" \
+                LDFLAGS="$DEBUG_LDFLAGS" \
+                ../configure \
+                    --prefix="\${AUTOBUILD_PACKAGES_DIR}" --includedir="\${prefix}/include/expat" --libdir="\${prefix}/lib/debug"
+                make -j$JOBS
+                make install DESTDIR="$STAGING_DIR"
+
+                # conditionally run unit tests
+                if [ "${DISABLE_UNIT_TESTS:-0}" = "0" ]; then
+                    make check
+                fi
+            popd
+
+            mkdir -p "build_release"
+            pushd "build_release"
+                # Release configure and build
+                export PKG_CONFIG_PATH="$STAGING_DIR/packages/lib/release/pkgconfig:${OLD_PKG_CONFIG_PATH}"
+
+                CFLAGS="$RELEASE_CFLAGS" \
+                CXXFLAGS="$RELEASE_CXXFLAGS" \
+                LDFLAGS="$RELEASE_LDFLAGS" \
+                ../configure \
+                    --prefix="\${AUTOBUILD_PACKAGES_DIR}" --includedir="\${prefix}/include/expat" --libdir="\${prefix}/lib/release"
+                make -j$JOBS
+                make install DESTDIR="$STAGING_DIR"
+
+                # conditionally run unit tests
+                if [ "${DISABLE_UNIT_TESTS:-0}" = "0" ]; then
+                    make check
+                fi
+            popd
         ;;
     esac
 
