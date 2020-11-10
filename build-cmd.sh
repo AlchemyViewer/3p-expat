@@ -29,8 +29,7 @@ EXPAT_SOURCE_DIR=expat
 EXPAT_VERSION="$(sed -n -E "s/^ *PACKAGE_VERSION *= *'(.*)' *\$/\1/p" \
                      "$top/$EXPAT_SOURCE_DIR/configure")"
 
-build=${AUTOBUILD_BUILD_ID:=0}
-echo "${EXPAT_VERSION}.${build}" > "${STAGING_DIR}/VERSION.txt"
+echo "${EXPAT_VERSION}" > "${STAGING_DIR}/VERSION.txt"
 
 pushd "$top/$EXPAT_SOURCE_DIR"
     case "$AUTOBUILD_PLATFORM" in
