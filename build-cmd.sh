@@ -86,30 +86,110 @@ pushd "$top/$EXPAT_SOURCE_DIR"
             cp lib/expat_external.h "$INCLUDE_DIR"
         ;;
         darwin*)
-            opts="-arch $AUTOBUILD_CONFIGURE_ARCH $LL_BUILD_RELEASE"
-            export CFLAGS="$opts"
-            export CXXFLAGS="$opts"
-            export LDFLAGS="$opts"
-            export CC="clang"
-            export PREFIX="$STAGING_DIR"
-            if ! ./configure --prefix=$PREFIX
-            then
-                cat config.log >&2
-                exit 1
-            fi
-            make
-            make install
+            # Setup osx sdk platform
+            SDKNAME="macosx10.15"
+            export SDKROOT=$(xcodebuild -version -sdk ${SDKNAME} Path)
+            export MACOSX_DEPLOYMENT_TARGET=10.13
 
-            mv "$PREFIX/lib" "$PREFIX/release"
-            mkdir -p "$PREFIX/lib"
-            mv "$PREFIX/release" "$PREFIX/lib"
-            pushd "$PREFIX/lib/release"
-            fix_dylib_id "libexpat.dylib"
+            # Setup build flags
+            ARCH_FLAGS="-arch x86_64"
+            SDK_FLAGS="-mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET} -isysroot ${SDKROOT}"
+            DEBUG_COMMON_FLAGS="$ARCH_FLAGS $SDK_FLAGS -Og -g -msse4.2 -fPIC -DPIC"
+            RELEASE_COMMON_FLAGS="$ARCH_FLAGS $SDK_FLAGS -Ofast -ffast-math -flto -g -msse4.2 -fPIC -DPIC -fstack-protector-strong"
+            DEBUG_CFLAGS="$DEBUG_COMMON_FLAGS"
+            RELEASE_CFLAGS="$RELEASE_COMMON_FLAGS"
+            DEBUG_CXXFLAGS="$DEBUG_COMMON_FLAGS -std=c++17"
+            RELEASE_CXXFLAGS="$RELEASE_COMMON_FLAGS -std=c++17"
+            DEBUG_CPPFLAGS="-DPIC"
+            RELEASE_CPPFLAGS="-DPIC"
+            DEBUG_LDFLAGS="$ARCH_FLAGS $SDK_FLAGS -Wl,-headerpad_max_install_names -Wl,-macos_version_min,$MACOSX_DEPLOYMENT_TARGET"
+            RELEASE_LDFLAGS="$ARCH_FLAGS $SDK_FLAGS -Wl,-headerpad_max_install_names -Wl,-macos_version_min,$MACOSX_DEPLOYMENT_TARGET"
+
+            mkdir -p "$STAGING_DIR/lib/debug"
+            mkdir -p "$STAGING_DIR/lib/release"
+
+            mkdir -p "build_debug"
+            pushd "build_debug"
+                CFLAGS="$DEBUG_CFLAGS" \
+                CXXFLAGS="$DEBUG_CXXFLAGS" \
+                CPPFLAGS="$DEBUG_CPPFLAGS" \
+                LDFLAGS="$DEBUG_LDFLAGS" \
+                cmake .. -GXcode -DEXPAT_BUILD_EXAMPLES=OFF \
+                    -DCMAKE_C_FLAGS="$DEBUG_CFLAGS" \
+                    -DCMAKE_CXX_FLAGS="$DEBUG_CXXFLAGS" \
+                    -DCMAKE_XCODE_ATTRIBUTE_GCC_OPTIMIZATION_LEVEL="0" \
+                    -DCMAKE_XCODE_ATTRIBUTE_GCC_FAST_MATH=NO \
+                    -DCMAKE_XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS=YES \
+                    -DCMAKE_XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT=dwarf-with-dsym \
+                    -DCMAKE_XCODE_ATTRIBUTE_LLVM_LTO=NO \
+                    -DCMAKE_XCODE_ATTRIBUTE_DEAD_CODE_STRIPPING=YES \
+                    -DCMAKE_XCODE_ATTRIBUTE_CLANG_X86_VECTOR_INSTRUCTIONS=sse4.2 \
+                    -DCMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LANGUAGE_STANDARD="c++17" \
+                    -DCMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LIBRARY="libc++" \
+                    -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY="" \
+                    -DCMAKE_OSX_ARCHITECTURES:STRING=x86_64 \
+                    -DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} \
+                    -DCMAKE_OSX_SYSROOT=${SDKROOT} \
+                    -DCMAKE_MACOSX_RPATH=YES -DCMAKE_INSTALL_PREFIX=$STAGING_DIR
+
+                cmake --build . --config Debug
+
+                # conditionally run unit tests
+                if [ "${DISABLE_UNIT_TESTS:-0}" = "0" ]; then
+                    ctest -C Debug
+                fi
+
+                cp -a Debug/libexpat*.dylib* "${STAGING_DIR}/lib/debug/"
             popd
 
-            mv "$PREFIX/include" "$PREFIX/expat"
-            mkdir -p "$PREFIX/include"
-            mv "$PREFIX/expat" "$PREFIX/include"
+            mkdir -p "build_release"
+            pushd "build_release"
+                CFLAGS="$RELEASE_CFLAGS" \
+                CXXFLAGS="$RELEASE_CXXFLAGS" \
+                CPPFLAGS="$RELEASE_CPPFLAGS" \
+                LDFLAGS="$RELEASE_LDFLAGS" \
+                cmake .. -GXcode -DEXPAT_BUILD_EXAMPLES=OFF \
+                    -DCMAKE_C_FLAGS="$RELEASE_CFLAGS" \
+                    -DCMAKE_CXX_FLAGS="$RELEASE_CXXFLAGS" \
+                    -DCMAKE_XCODE_ATTRIBUTE_GCC_OPTIMIZATION_LEVEL="fast" \
+                    -DCMAKE_XCODE_ATTRIBUTE_GCC_FAST_MATH=YES \
+                    -DCMAKE_XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS=YES \
+                    -DCMAKE_XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT=dwarf-with-dsym \
+                    -DCMAKE_XCODE_ATTRIBUTE_LLVM_LTO=YES \
+                    -DCMAKE_XCODE_ATTRIBUTE_DEAD_CODE_STRIPPING=YES \
+                    -DCMAKE_XCODE_ATTRIBUTE_CLANG_X86_VECTOR_INSTRUCTIONS=sse4.2 \
+                    -DCMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LANGUAGE_STANDARD="c++17" \
+                    -DCMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LIBRARY="libc++" \
+                    -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY="" \
+                    -DCMAKE_OSX_ARCHITECTURES:STRING=x86_64 \
+                    -DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} \
+                    -DCMAKE_OSX_SYSROOT=${SDKROOT} \
+                    -DCMAKE_MACOSX_RPATH=YES -DCMAKE_INSTALL_PREFIX=$STAGING_DIR
+
+                cmake --build . --config Release
+
+                # conditionally run unit tests
+                if [ "${DISABLE_UNIT_TESTS:-0}" = "0" ]; then
+                    ctest -C Release
+                fi
+
+                cp -a Release/libexpat*.dylib* "${STAGING_DIR}/lib/release/"
+            popd
+
+            pushd "${STAGING_DIR}/lib/debug"
+                fix_dylib_id "libexpat.dylib"
+                strip -x -S libexpat.dylib
+            popd
+
+            pushd "${STAGING_DIR}/lib/release"
+                fix_dylib_id "libexpat.dylib"
+                strip -x -S libexpat.dylib
+            popd
+
+            INCLUDE_DIR="$STAGING_DIR/include/expat"
+            mkdir -p "$INCLUDE_DIR"
+            cp lib/expat.h "$INCLUDE_DIR"
+            cp lib/expat_external.h "$INCLUDE_DIR"
         ;;
         linux*)
             PREFIX="$STAGING_DIR"
