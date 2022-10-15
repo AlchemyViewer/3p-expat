@@ -58,7 +58,7 @@ pushd "$top/$EXPAT_SOURCE_DIR"
                     cp Debug/libexpatd.dll "tests/Debug/"
                     ctest -C Debug
                 fi
-                cp Debug/libexpatd.{lib,dll,exp,pdb} "$STAGING_DIR/lib/release/"
+                cp Debug/libexpatd.{lib,dll,exp,pdb} "$STAGING_DIR/lib/debug/"
             popd
 
             mkdir -p "build_release"
