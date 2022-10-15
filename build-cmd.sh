@@ -31,59 +31,58 @@ EXPAT_VERSION="$(sed -n -E "s/^ *PACKAGE_VERSION *= *'(.*)' *\$/\1/p" \
 
 echo "${EXPAT_VERSION}" > "${STAGING_DIR}/VERSION.txt"
 
+# Create staging dirs
+mkdir -p "$STAGING_DIR/include/expat"
+mkdir -p "$STAGING_DIR/lib/debug"
+mkdir -p "$STAGING_DIR/lib/release"
+
 pushd "$top/$EXPAT_SOURCE_DIR"
     case "$AUTOBUILD_PLATFORM" in
         windows*)
             load_vsvars
 
-            if [ "$AUTOBUILD_ADDRSIZE" = 32 ]
-            then
-                archflags="/arch:SSE2"
-            else
-                archflags=""
-            fi
-
-            mkdir -p "$STAGING_DIR/lib/debug"
-            mkdir -p "$STAGING_DIR/lib/release"
-
             mkdir -p "build_debug"
             pushd "build_debug"
                 # Invoke cmake and use as official build
-                cmake -E env CFLAGS="$archflags" CXXFLAGS="$archflags /std:c++17 /permissive-" LDFLAGS="/DEBUG:FULL" \
-                cmake -G "$AUTOBUILD_WIN_CMAKE_GEN" -A "$AUTOBUILD_WIN_VSPLATFORM" .. -DEXPAT_SHARED_LIBS=ON -DEXPAT_BUILD_TOOLS=OFF -DEXPAT_BUILD_EXAMPLES=OFF
+                cmake -G "$AUTOBUILD_WIN_CMAKE_GEN" -A "$AUTOBUILD_WIN_VSPLATFORM" .. \
+                    -DCMAKE_INSTALL_PREFIX="$(cygpath -m $STAGING_DIR)/debug" \
+                    -DEXPAT_SHARED_LIBS=ON \
+                    -DEXPAT_BUILD_TOOLS=OFF \
+                    -DEXPAT_BUILD_EXAMPLES=OFF
 
                 cmake --build . --config Debug --clean-first
+                cmake --install . --config Debug
 
                 # conditionally run unit tests
                 if [ "${DISABLE_UNIT_TESTS:-0}" = "0" ]; then
                     cp Debug/libexpatd.dll "tests/Debug/"
                     ctest -C Debug
                 fi
-
-                cp Debug/libexpatd.{lib,dll,exp,pdb} "$STAGING_DIR/lib/debug/"
+                cp Debug/libexpatd.{lib,dll,exp,pdb} "$STAGING_DIR/lib/release/"
             popd
 
             mkdir -p "build_release"
             pushd "build_release"
                 # Invoke cmake and use as official build
-                cmake -E env CFLAGS="$archflags /Ob3 /GL /Gy /Zi" CXXFLAGS="$archflags /Ob3 /GL /Gy /Zi /std:c++17 /permissive-" LDFLAGS="/LTCG /OPT:REF /OPT:ICF /DEBUG:FULL" \
-                cmake -G "$AUTOBUILD_WIN_CMAKE_GEN" -A "$AUTOBUILD_WIN_VSPLATFORM" .. -DEXPAT_SHARED_LIBS=ON -DEXPAT_BUILD_TOOLS=OFF -DEXPAT_BUILD_EXAMPLES=OFF
+                cmake -G "$AUTOBUILD_WIN_CMAKE_GEN" -A "$AUTOBUILD_WIN_VSPLATFORM" .. \
+                    -DCMAKE_INSTALL_PREFIX="$(cygpath -m $STAGING_DIR)/release" \
+                    -DEXPAT_SHARED_LIBS=ON \
+                    -DEXPAT_BUILD_TOOLS=OFF \
+                    -DEXPAT_BUILD_EXAMPLES=OFF
 
-                cmake --build . --config Release --clean-first
+                cmake --build . --config RelWithDebInfo --clean-first
+                cmake --install . --config RelWithDebInfo
 
                 # conditionally run unit tests
                 if [ "${DISABLE_UNIT_TESTS:-0}" = "0" ]; then
-                    cp Release/libexpat.dll "tests/Release/"
-                    ctest -C Release
+                    cp RelWithDebInfo/libexpat.dll "tests/RelWithDebInfo/"
+                    ctest -C RelWithDebInfo
                 fi
-
-                cp Release/libexpat.{lib,dll,exp,pdb} "$STAGING_DIR/lib/release/"
+                cp RelWithDebInfo/libexpat.{lib,dll,exp,pdb} "$STAGING_DIR/lib/release/"
             popd
 
-            INCLUDE_DIR="$STAGING_DIR/include/expat"
-            mkdir -p "$INCLUDE_DIR"
-            cp lib/expat.h "$INCLUDE_DIR"
-            cp lib/expat_external.h "$INCLUDE_DIR"
+            # copy headers
+            cp -a $STAGING_DIR/release/include/* $STAGING_DIR/include/expat/
         ;;
         darwin*)
             # Setup osx sdk platform
@@ -248,10 +247,6 @@ pushd "$top/$EXPAT_SOURCE_DIR"
                 fi
             popd
 
-            mkdir -p "$STAGING_DIR/include/expat"
-            mkdir -p "$STAGING_DIR/lib/debug"
-            mkdir -p "$STAGING_DIR/lib/release"
-
             # create fat libraries
             lipo -create ${STAGING_DIR}/debug_x86/lib/libexpat.a ${STAGING_DIR}/debug_arm64/lib/libexpat.a -output ${STAGING_DIR}/lib/debug/libexpat.a
             lipo -create ${STAGING_DIR}/release_x86/lib/libexpat.a ${STAGING_DIR}/release_arm64/lib/libexpat.a -output ${STAGING_DIR}/lib/release/libexpat.a
@@ -275,8 +270,6 @@ pushd "$top/$EXPAT_SOURCE_DIR"
             DEBUG_LDFLAGS="$opts"
             RELEASE_LDFLAGS="$opts"      
 
-            JOBS=`cat /proc/cpuinfo | grep processor | wc -l`
-
             # Handle any deliberate platform targeting
             if [ -z "${TARGET_CPPFLAGS:-}" ]; then
                 # Remove sysroot contamination from build environment
@@ -286,53 +279,54 @@ pushd "$top/$EXPAT_SOURCE_DIR"
                 export CPPFLAGS="$TARGET_CPPFLAGS"
             fi
 
-            # Fix up path for pkgconfig
-            if [ -d "$STAGING_DIR/packages/lib/release/pkgconfig" ]; then
-                fix_pkgconfig_prefix "$STAGING_DIR/packages"
-            fi
-
-            OLD_PKG_CONFIG_PATH="${PKG_CONFIG_PATH:-}"
-
-            # force regenerate autoconf
-            autoreconf -fvi
-
             mkdir -p "build_debug"
             pushd "build_debug"
-                # debug configure and build
-                export PKG_CONFIG_PATH="$STAGING_DIR/packages/lib/debug/pkgconfig:${OLD_PKG_CONFIG_PATH}"
-
                 CFLAGS="$DEBUG_CFLAGS" \
-                CXXFLAGS="$DEBUG_CXXFLAGS" \
-                LDFLAGS="$DEBUG_LDFLAGS" \
-                ../configure \
-                    --prefix="\${AUTOBUILD_PACKAGES_DIR}" --includedir="\${prefix}/include/expat" --libdir="\${prefix}/lib/debug"
-                make -j$JOBS
-                make install DESTDIR="$STAGING_DIR"
+                CPPFLAGS="$DEBUG_CPPFLAGS" \
+                cmake .. -GNinja -DBUILD_SHARED_LIBS:BOOL=OFF \
+                    -DCMAKE_BUILD_TYPE="Debug" \
+                    -DCMAKE_C_FLAGS="$DEBUG_CFLAGS" \
+                    -DCMAKE_INSTALL_PREFIX="$STAGING_DIR/debug" \
+                    -DEXPAT_SHARED_LIBS=ON \
+                    -DEXPAT_BUILD_TOOLS=OFF \
+                    -DEXPAT_BUILD_EXAMPLES=OFF
+
+                cmake --build . --config Debug
+                cmake --install . --config Debug
 
                 # conditionally run unit tests
-                if [ "${DISABLE_UNIT_TESTS:-0}" = "0" ]; then
-                    make check
-                fi
+                #if [ "${DISABLE_UNIT_TESTS:-0}" = "0" ]; then
+                #    ctest -C Debug
+                #fi
             popd
 
             mkdir -p "build_release"
             pushd "build_release"
-                # Release configure and build
-                export PKG_CONFIG_PATH="$STAGING_DIR/packages/lib/release/pkgconfig:${OLD_PKG_CONFIG_PATH}"
-
                 CFLAGS="$RELEASE_CFLAGS" \
-                CXXFLAGS="$RELEASE_CXXFLAGS" \
-                LDFLAGS="$RELEASE_LDFLAGS" \
-                ../configure \
-                    --prefix="\${AUTOBUILD_PACKAGES_DIR}" --includedir="\${prefix}/include/expat" --libdir="\${prefix}/lib/release"
-                make -j$JOBS
-                make install DESTDIR="$STAGING_DIR"
+                CPPFLAGS="$RELEASE_CPPFLAGS" \
+                cmake .. -GNinja -DBUILD_SHARED_LIBS:BOOL=OFF \
+                    -DCMAKE_BUILD_TYPE="Release" \
+                    -DCMAKE_C_FLAGS="$RELEASE_CFLAGS" \
+                    -DCMAKE_INSTALL_PREFIX="$STAGING_DIR/release" \
+                    -DEXPAT_SHARED_LIBS=ON \
+                    -DEXPAT_BUILD_TOOLS=OFF \
+                    -DEXPAT_BUILD_EXAMPLES=OFF
+
+                cmake --build . --config Release
+                cmake --install . --config Release
 
                 # conditionally run unit tests
-                if [ "${DISABLE_UNIT_TESTS:-0}" = "0" ]; then
-                    make check
-                fi
+                #if [ "${DISABLE_UNIT_TESTS:-0}" = "0" ]; then
+                #    ctest -C Release
+                #fi
             popd
+
+            # Copy libraries
+            cp -a ${STAGING_DIR}/debug/lib/*.so* ${STAGING_DIR}/lib/debug/
+            cp -a ${STAGING_DIR}/release/lib/*.so* ${STAGING_DIR}/lib/release/
+
+            # copy headers
+            cp -a $STAGING_DIR/release/include/* $STAGING_DIR/include/expat/
         ;;
     esac
 
