@@ -46,7 +46,7 @@ pushd "$top/$EXPAT_SOURCE_DIR"
                 # Invoke cmake and use as official build
                 cmake -G "$AUTOBUILD_WIN_CMAKE_GEN" -A "$AUTOBUILD_WIN_VSPLATFORM" .. \
                     -DCMAKE_INSTALL_PREFIX="$(cygpath -m $STAGING_DIR)/debug" \
-                    -DEXPAT_SHARED_LIBS=ON \
+                    -DEXPAT_SHARED_LIBS=OFF \
                     -DEXPAT_BUILD_TOOLS=OFF \
                     -DEXPAT_BUILD_EXAMPLES=OFF
 
@@ -55,10 +55,8 @@ pushd "$top/$EXPAT_SOURCE_DIR"
 
                 # conditionally run unit tests
                 if [ "${DISABLE_UNIT_TESTS:-0}" = "0" ]; then
-                    cp Debug/libexpatd.dll "tests/Debug/"
                     ctest -C Debug
                 fi
-                cp Debug/libexpatd.{lib,dll,exp,pdb} "$STAGING_DIR/lib/debug/"
             popd
 
             mkdir -p "build_release"
@@ -66,20 +64,22 @@ pushd "$top/$EXPAT_SOURCE_DIR"
                 # Invoke cmake and use as official build
                 cmake -G "$AUTOBUILD_WIN_CMAKE_GEN" -A "$AUTOBUILD_WIN_VSPLATFORM" .. \
                     -DCMAKE_INSTALL_PREFIX="$(cygpath -m $STAGING_DIR)/release" \
-                    -DEXPAT_SHARED_LIBS=ON \
+                    -DEXPAT_SHARED_LIBS=OFF \
                     -DEXPAT_BUILD_TOOLS=OFF \
                     -DEXPAT_BUILD_EXAMPLES=OFF
 
-                cmake --build . --config RelWithDebInfo --clean-first
-                cmake --install . --config RelWithDebInfo
+                cmake --build . --config Release --clean-first
+                cmake --install . --config Release
 
                 # conditionally run unit tests
                 if [ "${DISABLE_UNIT_TESTS:-0}" = "0" ]; then
-                    cp RelWithDebInfo/libexpat.dll "tests/RelWithDebInfo/"
-                    ctest -C RelWithDebInfo
+                    ctest -C Release
                 fi
-                cp RelWithDebInfo/libexpat.{lib,dll,exp,pdb} "$STAGING_DIR/lib/release/"
             popd
+
+            # copy libs
+            cp -a $STAGING_DIR/debug/lib/libexpatdMD.lib $STAGING_DIR/lib/debug/libexpatd.lib
+            cp -a $STAGING_DIR/release/lib/libexpatMD.lib $STAGING_DIR/lib/release/libexpat.lib
 
             # copy headers
             cp -a $STAGING_DIR/release/include/* $STAGING_DIR/include/expat/

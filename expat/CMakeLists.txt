@@ -416,6 +416,7 @@ if(MSVC AND NOT EXPAT_SHARED_LIBS)
     else()
         set(_POSTFIX_CRT "MD")
     endif()
+    target_compile_options(expat PRIVATE /Z7)
 endif()
 
 foreach(build_type_upper
