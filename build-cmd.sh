@@ -287,7 +287,7 @@ pushd "$top/$EXPAT_SOURCE_DIR"
                     -DCMAKE_BUILD_TYPE="Debug" \
                     -DCMAKE_C_FLAGS="$DEBUG_CFLAGS" \
                     -DCMAKE_INSTALL_PREFIX="$STAGING_DIR/debug" \
-                    -DEXPAT_SHARED_LIBS=ON \
+                    -DBUILD_SHARED_LIBS=OFF \
                     -DEXPAT_BUILD_TOOLS=OFF \
                     -DEXPAT_BUILD_EXAMPLES=OFF
 
@@ -295,9 +295,9 @@ pushd "$top/$EXPAT_SOURCE_DIR"
                 cmake --install . --config Debug
 
                 # conditionally run unit tests
-                #if [ "${DISABLE_UNIT_TESTS:-0}" = "0" ]; then
-                #    ctest -C Debug
-                #fi
+                if [ "${DISABLE_UNIT_TESTS:-0}" = "0" ]; then
+                   ctest -C Debug
+                fi
             popd
 
             mkdir -p "build_release"
@@ -308,7 +308,7 @@ pushd "$top/$EXPAT_SOURCE_DIR"
                     -DCMAKE_BUILD_TYPE="Release" \
                     -DCMAKE_C_FLAGS="$RELEASE_CFLAGS" \
                     -DCMAKE_INSTALL_PREFIX="$STAGING_DIR/release" \
-                    -DEXPAT_SHARED_LIBS=ON \
+                    -DBUILD_SHARED_LIBS=OFF \
                     -DEXPAT_BUILD_TOOLS=OFF \
                     -DEXPAT_BUILD_EXAMPLES=OFF
 
@@ -316,14 +316,14 @@ pushd "$top/$EXPAT_SOURCE_DIR"
                 cmake --install . --config Release
 
                 # conditionally run unit tests
-                #if [ "${DISABLE_UNIT_TESTS:-0}" = "0" ]; then
-                #    ctest -C Release
-                #fi
+                if [ "${DISABLE_UNIT_TESTS:-0}" = "0" ]; then
+                   ctest -C Release
+                fi
             popd
 
             # Copy libraries
-            cp -a ${STAGING_DIR}/debug/lib/*.so* ${STAGING_DIR}/lib/debug/
-            cp -a ${STAGING_DIR}/release/lib/*.so* ${STAGING_DIR}/lib/release/
+            cp -a ${STAGING_DIR}/debug/lib/*.a ${STAGING_DIR}/lib/debug/
+            cp -a ${STAGING_DIR}/release/lib/*.a ${STAGING_DIR}/lib/release/
 
             # copy headers
             cp -a $STAGING_DIR/release/include/* $STAGING_DIR/include/expat/
