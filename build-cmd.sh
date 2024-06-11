@@ -103,7 +103,7 @@ pushd "$top/$EXPAT_SOURCE_DIR"
                 CFLAGS="$C_OPTS_X86" \
                 CXXFLAGS="$CXX_OPTS_X86" \
                 LDFLAGS="$LINK_OPTS_X86" \
-                cmake .. -GXcode -DEXPAT_BUILD_EXAMPLES=OFF -DEXPAT_SHARED_LIBS=OFF \
+                cmake .. -G Ninja -DEXPAT_BUILD_EXAMPLES=OFF -DEXPAT_SHARED_LIBS=OFF \
                     -DCMAKE_BUILD_TYPE="Release" \
                     -DCMAKE_C_FLAGS="$C_OPTS_X86" \
                     -DCMAKE_CXX_FLAGS="$CXX_OPTS_X86" \
@@ -126,7 +126,7 @@ pushd "$top/$EXPAT_SOURCE_DIR"
                 CFLAGS="$C_OPTS_ARM64" \
                 CXXFLAGS="$CXX_OPTS_ARM64" \
                 LDFLAGS="$LINK_OPTS_ARM64" \
-                cmake .. -GXcode -DEXPAT_BUILD_EXAMPLES=OFF -DEXPAT_SHARED_LIBS=OFF \
+                cmake .. -G Ninja -DEXPAT_BUILD_EXAMPLES=OFF -DEXPAT_SHARED_LIBS=OFF \
                     -DCMAKE_BUILD_TYPE="Release" \
                     -DCMAKE_C_FLAGS="$C_OPTS_ARM64" \
                     -DCMAKE_CXX_FLAGS="$CXX_OPTS_ARM64" \
@@ -183,10 +183,10 @@ pushd "$top/$EXPAT_SOURCE_DIR"
             pushd "build_release"
                 CFLAGS="$opts_c" \
                 CXXFLAGS="$opts_cxx" \
-                cmake .. -GNinja -DBUILD_SHARED_LIBS:BOOL=OFF \
+                cmake .. -G Ninja -DBUILD_SHARED_LIBS:BOOL=OFF \
                     -DCMAKE_BUILD_TYPE="Release" \
                     -DCMAKE_C_FLAGS="$opts_c" \
-                    -DCMAKE_C_FLAGS="$opts_cxx" \
+                    -DCMAKE_CXX_FLAGS="$opts_cxx" \
                     -DCMAKE_INSTALL_PREFIX="$STAGING_DIR/release" \
                     -DBUILD_SHARED_LIBS=OFF \
                     -DEXPAT_BUILD_TOOLS=OFF \
