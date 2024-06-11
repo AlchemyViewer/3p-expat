@@ -4,7 +4,7 @@
     <key>package_description</key>
     <map>
       <key>canonical_repo</key>
-      <string>https://git.alchemyviewer.org/alchemy/thirdparty/3p-expat</string>
+      <string>https://github.com/AlchemyViewer/3p-expat</string>
       <key>copyright</key>
       <string>Copyright (c) 1998-2000 Thai Open Source Software Center Ltd and Clark Cooper - Copyright (c) 2001-2022 Expat maintainers</string>
       <key>description</key>
@@ -62,7 +62,6 @@
           </map>
           <key>manifest</key>
           <array>
-            <string>lib/debug/*.a</string>
             <string>lib/release/*.a</string>
           </array>
           <key>name</key>
@@ -85,7 +84,6 @@
           </map>
           <key>manifest</key>
           <array>
-            <string>lib/debug/*.a</string>
             <string>lib/release/*.a</string>
           </array>
           <key>name</key>
