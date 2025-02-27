@@ -6,7 +6,7 @@
       <key>canonical_repo</key>
       <string>https://github.com/AlchemyViewer/3p-expat</string>
       <key>copyright</key>
-      <string>Copyright (c) 1998-2000 Thai Open Source Software Center Ltd and Clark Cooper - Copyright (c) 2001-2022 Expat maintainers</string>
+      <string>Copyright (c) 1998-2000 Thai Open Source Software Center Ltd and Clark Cooper - Copyright (c) 2001-2022 Expat maintainers.</string>
       <key>description</key>
       <string>Expat is an XML parser library written in C</string>
       <key>license</key>
@@ -113,8 +113,8 @@
           <string>windows</string>
         </map>
       </map>
-      <key>version_file</key>
-      <string>VERSION.txt</string>
+      <key>use_scm_version</key>
+      <boolean>true</boolean>
     </map>
     <key>type</key>
     <string>autobuild</string>

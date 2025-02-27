@@ -1,6 +1,6 @@
 # 3p-expat
 
-[Autobuild][] packaged [expat][].
+[Expat XML parser][expat] [autobuild] package.
 
-[Autobuild]: https://github.com/secondlife/autobuild
 [expat]: https://libexpat.github.io/
+[autobuild]: https://wiki.secondlife.com/wiki/Autobuild
