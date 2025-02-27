@@ -1,0 +1,13 @@
+diff --git a/expat/CMakeLists.txt b/expat/CMakeLists.txt
+index 1f650339..5e77537f 100644
+--- a/expat/CMakeLists.txt
++++ b/expat/CMakeLists.txt
+@@ -34,7 +34,7 @@
+ # Unlike most of Expat,
+ # this file is copyrighted under the BSD-license for buildsystem files of KDE.
+ 
+-cmake_minimum_required(VERSION 3.5.0)
++cmake_minimum_required(VERSION 3.16.0...3.31.0)
+ 
+ project(expat
+     VERSION

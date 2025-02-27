@@ -22,8 +22,12 @@ source_environment_tempfile="$stage/source_environment.sh"
 "$autobuild" source_environment > "$source_environment_tempfile"
 . "$source_environment_tempfile"
 
-# remove_cxxstd
+# remove_cxxstd apply_patch
 source "$(dirname "$AUTOBUILD_VARIABLES_FILE")/functions"
+
+pushd "$top"
+ apply_patch "$top/patches/update-cmake-version.patch" "libexpat"
+popd
 
 mkdir -p $top
 mkdir -p $build
@@ -38,19 +42,53 @@ pushd $build
             load_vsvars
             set -x
 
-            opts="$(replace_switch /Zi /Z7 $LL_BUILD_RELEASE)"
-            plainopts="$(remove_switch /GR $(remove_cxxstd $opts))"
+            mkdir -p "debug"
+            pushd "debug"
+                opts="$(replace_switch /Zi /Z7 $LL_BUILD_DEBUG)"
+                plainopts="$(remove_switch /GR $(remove_cxxstd $opts))"
 
-            cmake $(cygpath -w $src) -G"Ninja Multi-Config" $cmake_flags -DCMAKE_INSTALL_PREFIX=$(cygpath -w $stage) -DCMAKE_C_FLAGS="$plainopts" -DCMAKE_CXX_FLAGS="$opts" -DEXPAT_MSVC_STATIC_CRT=OFF
-            cmake --build . --config Release --parallel $AUTOBUILD_CPU_COUNT
-            if [ "${DISABLE_UNIT_TESTS:-0}" = "0" ]; then
-                ctest -C Release --parallel $AUTOBUILD_CPU_COUNT
-            fi
+                cmake $(cygpath -w $src) -G"Ninja Multi-Config" $cmake_flags \
+                        -DCMAKE_INSTALL_PREFIX=$(cygpath -w $stage) \
+                        -DCMAKE_C_FLAGS="$plainopts" \
+                        -DCMAKE_CXX_FLAGS="$opts" \
+                        -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT="Embedded" \
+                        -DEXPAT_MSVC_STATIC_CRT=OFF
 
-            cmake --install . --config Release
+                cmake --build . --config Debug --parallel $AUTOBUILD_CPU_COUNT
 
-            mkdir -p "$stage/lib/release"
-            mv $stage/lib/libexpatMD.lib "$stage/lib/release/libexpat.lib"
+                if [ "${DISABLE_UNIT_TESTS:-0}" = "0" ]; then
+                    ctest -C Debug --parallel $AUTOBUILD_CPU_COUNT
+                fi
+
+                cmake --install . --config Debug
+
+                mkdir -p "$stage/lib/debug"
+                mv $stage/lib/libexpatdMD.lib "$stage/lib/debug/libexpatd.lib"
+            popd
+
+            mkdir -p "release"
+            pushd "release"
+                opts="$(replace_switch /Zi /Z7 $LL_BUILD_RELEASE)"
+                plainopts="$(remove_switch /GR $(remove_cxxstd $opts))"
+
+                cmake $(cygpath -w $src) -G"Ninja Multi-Config" $cmake_flags \
+                        -DCMAKE_INSTALL_PREFIX=$(cygpath -w $stage) \
+                        -DCMAKE_C_FLAGS="$plainopts" \
+                        -DCMAKE_CXX_FLAGS="$opts" \
+                        -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT="Embedded" \
+                        -DEXPAT_MSVC_STATIC_CRT=OFF
+
+                cmake --build . --config Release --parallel $AUTOBUILD_CPU_COUNT
+
+                if [ "${DISABLE_UNIT_TESTS:-0}" = "0" ]; then
+                    ctest -C Release --parallel $AUTOBUILD_CPU_COUNT
+                fi
+
+                cmake --install . --config Release
+
+                mkdir -p "$stage/lib/release"
+                mv $stage/lib/libexpatMD.lib "$stage/lib/release/libexpat.lib"
+            popd
         ;;
         darwin*)
             export MACOSX_DEPLOYMENT_TARGET="$LL_BUILD_DARWIN_DEPLOY_TARGET"
@@ -93,6 +131,7 @@ pushd $build
 
             cmake $src -G "Ninja" $cmake_flags -DCMAKE_INSTALL_PREFIX=$stage -DCMAKE_C_FLAGS="$plainopts" -DCMAKE_CXX_FLAGS="$opts" -DCMAKE_BUILD_TYPE=Release
             cmake --build . --config Release --parallel $AUTOBUILD_CPU_COUNT
+
             if [ "${DISABLE_UNIT_TESTS:-0}" = "0" ]; then
                 ctest -C Release --parallel $AUTOBUILD_CPU_COUNT
             fi
